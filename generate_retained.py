@@ -27,9 +27,15 @@ PREVIEW_HTML   = "preview_retained.html"
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def parse_talk_time_minutes(val):
-    """Convert Airtable talk-time value (MM:SS, HH:MM:SS, or decimal) → float minutes."""
-    if not val:
+    """Convert Airtable talk-time value → float minutes.
+    Airtable duration fields return raw SECONDS as a number via API (e.g. 1079 = 17m59s).
+    String formats (MM:SS, HH:MM:SS) are also handled as a fallback.
+    """
+    if val is None:
         return None
+    # Airtable API returns duration fields as integer/float seconds
+    if isinstance(val, (int, float)):
+        return val / 60
     s = str(val).strip()
     if not s or s in ("0", "0:00", "00:00"):
         return 0.0
@@ -43,7 +49,7 @@ def parse_talk_time_minutes(val):
         except Exception:
             return None
     try:
-        return float(s)
+        return float(s) / 60  # assume seconds if plain number string
     except Exception:
         return None
 
@@ -160,21 +166,32 @@ def process_records(gsheet_rows, airtable_map):
     Filter GSheet rows where Retained=TRUE, cross-ref Airtable by email,
     return (records_list, matched_count, total_retained_count).
     """
+    # Build first-name → full-name lookup from Airtable agent data so we can
+    # normalise GSheet records that only have a first name (e.g. "Charlene" → "Charlene Basbudak")
+    first_name_to_full = {}
+    for fields in airtable_map.values():
+        fn = str(fields.get("Agent First Name", "")).strip()
+        ln = str(fields.get("Agent Last Name", "")).strip()
+        if fn and ln:
+            first_name_to_full[fn.lower()] = f"{fn} {ln}"
+
     records = []
     matched = 0
     for row in gsheet_rows:
         retained = str(row.get("Retained", "")).strip().upper()
-        if retained not in ("TRUE", "YES", "1", "TRUE"):
+        if retained not in ("TRUE", "YES", "1"):
             continue
         email   = str(row.get("Email", "")).strip()
         name    = f"{row.get('First Name','').strip()} {row.get('Last Name','').strip()}".strip()
-        agent   = str(row.get("Agent Name", "")).strip()
+        agent   = str(row.get("Agent Name", "")).strip().replace("_", " ")
         phone   = str(row.get("Phone Number", "")).strip()
         sub_date= str(row.get("Subscription Created Date", "")).strip()
         eater   = str(row.get("Eater Type", "")).strip()
         days_raw= str(row.get("Days to Box 2", "")).strip()
         time_act= str(row.get("Time Active", "")).strip()
-        pause   = str(row.get("Pause Since Box 2", "")).strip().upper() in ("TRUE","YES","1")
+        # Pause Since Box 2: may be a date, "TRUE", "Yes", or any truthy string
+        pause_val = str(row.get("Pause Since Box 2", "")).strip()
+        pause     = bool(pause_val) and pause_val.upper() not in ("FALSE", "NO", "0", "N", "")
 
         try:
             days_to_box2 = int(float(days_raw)) if days_raw else None
@@ -188,13 +205,16 @@ def process_records(gsheet_rows, airtable_map):
             talk_time_raw  = at.get("Talk Time")
             talk_time_mins = parse_talk_time_minutes(talk_time_raw)
             lead_attempts  = at.get("Lead Total Attempts")
-            # Prefer Airtable agent name if available
+            # Use Airtable full agent name (First + Last) for matched records
             at_agent = f"{at.get('Agent First Name','').strip()} {at.get('Agent Last Name','').strip()}".strip()
             if at_agent:
                 agent = at_agent
         else:
             talk_time_mins = None
             lead_attempts  = None
+            # Normalise first-name-only GSheet agent names using Airtable lookup
+            if agent and " " not in agent:
+                agent = first_name_to_full.get(agent.lower(), agent)
 
         pause_reason = str(row.get("First Pause Reason", "")).strip()
 
@@ -695,9 +715,9 @@ function renderAgentChart() {{
 
 function renderTalkTimeChart() {{
   const el=document.getElementById('chart-talktime'); el.innerHTML='';
-  const cats={{Short:0,Medium:0,Long:0,Unmatched:0}};
-  const catColors={{Short:MR.mustard,Medium:MR.maroon,Long:MR.maroonDark,Unmatched:MR.pink}};
-  filteredRecords.forEach(r=>{{ const k=r.talk_time_category||'Unmatched'; if(cats[k]!==undefined) cats[k]++; else cats['Unmatched']++; }});
+  const cats={{Short:0,Medium:0,Long:0,'No call data':0}};
+  const catColors={{Short:MR.mustard,Medium:MR.maroon,Long:MR.maroonDark,'No call data':MR.pink}};
+  filteredRecords.forEach(r=>{{ const k=r.talk_time_category||'No call data'; if(cats[k]!==undefined) cats[k]++; else cats['No call data']++; }});
   const total=Object.values(cats).reduce((a,b)=>a+b,0);
   if (!total) {{ el.innerHTML='<p style="color:var(--mr-text-muted);font-size:12px">No data</p>'; return; }}
   const W=380,H=200,cx=105,cy=95,R=75,r2=45;
