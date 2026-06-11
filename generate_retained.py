@@ -773,3 +773,49 @@ function esc(s) {{ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;
 </script>
 </body>
 </html>"""
+
+# ─── Main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    os.makedirs("docs", exist_ok=True)
+
+    if PREVIEW_MODE:
+        print("Preview mode — using 15 sample records")
+        records      = SAMPLE_RECORDS
+        matched      = sum(1 for r in records if r["talk_time_mins"] is not None)
+        total        = len(records)
+        html         = build_html(records, matched, total, is_preview=True)
+        with open(PREVIEW_HTML, "w", encoding="utf-8") as f:
+            f.write(html)
+        print(f"Written: {PREVIEW_HTML}  ({len(html):,} bytes)")
+        return
+
+    # ── Production ──────────────────────────────────────────────────────────
+    print("Fetching Google Sheets data…")
+    gsheet_rows = fetch_gsheet_rows()
+    print(f"  {len(gsheet_rows)} rows fetched")
+
+    print("Fetching Airtable data…")
+    airtable_map = fetch_airtable_map()
+    print(f"  {len(airtable_map)} Airtable records indexed")
+
+    print("Processing records…")
+    records, matched, total = process_records(gsheet_rows, airtable_map)
+    print(f"  {total} retained customers, {matched} matched to dialer data")
+
+    # Write data.json
+    data_payload = {"records": records, "matched": matched, "total": total,
+                    "generated_at": datetime.utcnow().isoformat() + "Z"}
+    with open(OUT_DATA, "w", encoding="utf-8") as f:
+        json.dump(data_payload, f, ensure_ascii=False, indent=2)
+    print(f"Written: {OUT_DATA}")
+
+    # Write HTML shell
+    html = build_html(records, matched, total, is_preview=False)
+    with open(OUT_HTML, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"Written: {OUT_HTML}")
+    print("Done.")
+
+if __name__ == "__main__":
+    main()
