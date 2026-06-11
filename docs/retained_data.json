@@ -290,7 +290,7 @@
     },
     {
       "name": "zsofia bajer",
-      "agent": "Christian",
+      "agent": "Morris Christian",
       "phone": "+447743658320",
       "email": "bajerzsofia94@gmail.com",
       "sub_date": "2026-05-29",
@@ -299,10 +299,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "habitual",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 10.27,
+      "talk_time_display": "10:16",
+      "talk_time_category": "Short",
+      "lead_attempts": 5
     },
     {
       "name": "joanne fowler",
@@ -315,10 +315,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 14.18,
+      "talk_time_display": "14:11",
+      "talk_time_category": "Short",
+      "lead_attempts": 1
     },
     {
       "name": "connor melvin",
@@ -603,10 +603,10 @@
       "pause_since_box2": false,
       "pause_reason": "do_not_want_subscription",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 16.47,
+      "talk_time_display": "16:28",
+      "talk_time_category": "Medium",
+      "lead_attempts": 3
     },
     {
       "name": "nathan degg",
@@ -667,10 +667,10 @@
       "pause_since_box2": false,
       "pause_reason": "do_not_want_subscription",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 20.18,
+      "talk_time_display": "20:11",
+      "talk_time_category": "Long",
+      "lead_attempts": 1
     },
     {
       "name": "luke squires",
@@ -843,10 +843,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "grazer",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 33.58,
+      "talk_time_display": "33:35",
+      "talk_time_category": "Long",
+      "lead_attempts": 5
     },
     {
       "name": "fayth pearson",
@@ -939,10 +939,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "grazer",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 14.28,
+      "talk_time_display": "14:17",
+      "talk_time_category": "Short",
+      "lead_attempts": 4
     },
     {
       "name": "kulsoom asghar",
@@ -955,10 +955,10 @@
       "pause_since_box2": true,
       "pause_reason": "do_not_want_subscription",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 18.52,
+      "talk_time_display": "18:31",
+      "talk_time_category": "Medium",
+      "lead_attempts": 2
     },
     {
       "name": "antonia provette",
@@ -1042,7 +1042,7 @@
     },
     {
       "name": "lorona watts",
-      "agent": "Christian",
+      "agent": "Morris Christian",
       "phone": "+447876180934",
       "email": "lorona.watts@gmail.com",
       "sub_date": "2026-05-21",
@@ -1051,10 +1051,10 @@
       "pause_since_box2": true,
       "pause_reason": "pet_did_not_eat_food",
       "eater_type": "habitual",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 18.7,
+      "talk_time_display": "18:42",
+      "talk_time_category": "Medium",
+      "lead_attempts": 3
     },
     {
       "name": "elin thompson",
@@ -1074,7 +1074,7 @@
     },
     {
       "name": "ann atkins",
-      "agent": "Christian",
+      "agent": "Morris Christian",
       "phone": "+447789647073",
       "email": "elizabethatkins245@btinternet.com",
       "sub_date": "2026-05-20",
@@ -1083,10 +1083,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "habitual",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 17.05,
+      "talk_time_display": "17:03",
+      "talk_time_category": "Medium",
+      "lead_attempts": 2
     },
     {
       "name": "rob beckford",
@@ -1147,10 +1147,10 @@
       "pause_since_box2": true,
       "pause_reason": "my_cat’s_health_means_they_require_a_different_diet_",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 21.62,
+      "talk_time_display": "21:37",
+      "talk_time_category": "Long",
+      "lead_attempts": 3
     },
     {
       "name": "tricia mcarthur",
@@ -1355,10 +1355,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 24.07,
+      "talk_time_display": "24:04",
+      "talk_time_category": "Long",
+      "lead_attempts": 2
     },
     {
       "name": "emily marsh",
@@ -1394,7 +1394,7 @@
     },
     {
       "name": "sally wilson",
-      "agent": "Christian",
+      "agent": "Morris Christian",
       "phone": "+447400580541",
       "email": "sal17770@hotmail.co.uk",
       "sub_date": "2026-05-19",
@@ -1403,10 +1403,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "habitual",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 0.0,
+      "talk_time_display": "0:00",
+      "talk_time_category": "Short",
+      "lead_attempts": 3
     },
     {
       "name": "treverlene payne",
@@ -1835,10 +1835,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 21.8,
+      "talk_time_display": "21:48",
+      "talk_time_category": "Long",
+      "lead_attempts": 1
     },
     {
       "name": "virginia franco",
@@ -2251,10 +2251,10 @@
       "pause_since_box2": false,
       "pause_reason": "sadly_my_cat_is_no_longer_here",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 20.27,
+      "talk_time_display": "20:16",
+      "talk_time_category": "Long",
+      "lead_attempts": 4
     },
     {
       "name": "amanda mitchell",
@@ -2379,10 +2379,10 @@
       "pause_since_box2": true,
       "pause_reason": "my_cat’s_health_means_they_require_a_different_diet_",
       "eater_type": "grazer",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 4.22,
+      "talk_time_display": "4:13",
+      "talk_time_category": "Short",
+      "lead_attempts": 3
     },
     {
       "name": "jayne dalgleish",
@@ -2715,10 +2715,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "grazer",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 20.55,
+      "talk_time_display": "20:33",
+      "talk_time_category": "Long",
+      "lead_attempts": 2
     },
     {
       "name": "peter stock",
@@ -3083,10 +3083,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "exploratory",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 34.42,
+      "talk_time_display": "34:25",
+      "talk_time_category": "Long",
+      "lead_attempts": 2
     },
     {
       "name": "gwendolyn banks",
@@ -3499,10 +3499,10 @@
       "pause_since_box2": true,
       "pause_reason": "sadly_my_cat_is_no_longer_here",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 20.5,
+      "talk_time_display": "20:30",
+      "talk_time_category": "Long",
+      "lead_attempts": 15
     },
     {
       "name": "judith trotter",
@@ -3547,10 +3547,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "grazer",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 3.52,
+      "talk_time_display": "3:31",
+      "talk_time_category": "Short",
+      "lead_attempts": 2
     },
     {
       "name": "janine parkins",
@@ -4347,10 +4347,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "grazer",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 13.72,
+      "talk_time_display": "13:43",
+      "talk_time_category": "Short",
+      "lead_attempts": 14
     },
     {
       "name": "neil khagram",
@@ -4443,10 +4443,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "exploratory",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 11.57,
+      "talk_time_display": "11:34",
+      "talk_time_category": "Short",
+      "lead_attempts": 13
     },
     {
       "name": "claire jerome",
@@ -4683,10 +4683,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 23.48,
+      "talk_time_display": "23:29",
+      "talk_time_category": "Long",
+      "lead_attempts": 7
     },
     {
       "name": "david brown",
@@ -4834,7 +4834,7 @@
     },
     {
       "name": "helen lee",
-      "agent": "Christian",
+      "agent": "Morris Christian",
       "phone": "+447587185205",
       "email": "helenlee55@hotmail.co.uk",
       "sub_date": "2026-04-21",
@@ -4843,10 +4843,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "habitual",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 25.35,
+      "talk_time_display": "25:21",
+      "talk_time_category": "Long",
+      "lead_attempts": 1
     },
     {
       "name": "jane brooks",
@@ -5259,10 +5259,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 7.72,
+      "talk_time_display": "7:43",
+      "talk_time_category": "Short",
+      "lead_attempts": 4
     },
     {
       "name": "abbi james",
@@ -5307,10 +5307,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 73.87,
+      "talk_time_display": "73:52",
+      "talk_time_category": "Long",
+      "lead_attempts": 7
     },
     {
       "name": "raluca birsanu",
@@ -5611,10 +5611,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "grazer",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 13.25,
+      "talk_time_display": "13:15",
+      "talk_time_category": "Short",
+      "lead_attempts": 2
     },
     {
       "name": "darcey rawson",
@@ -5739,10 +5739,10 @@
       "pause_since_box2": true,
       "pause_reason": "do_not_want_subscription",
       "eater_type": "greedy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 16.22,
+      "talk_time_display": "16:13",
+      "talk_time_category": "Medium",
+      "lead_attempts": 6
     },
     {
       "name": "julie davidson",
@@ -6379,10 +6379,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "grazer",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 3.88,
+      "talk_time_display": "3:53",
+      "talk_time_category": "Short",
+      "lead_attempts": 3
     },
     {
       "name": "lillian webb",
@@ -6571,10 +6571,10 @@
       "pause_since_box2": true,
       "pause_reason": "pet_did_not_eat_food",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 17.78,
+      "talk_time_display": "17:47",
+      "talk_time_category": "Medium",
+      "lead_attempts": 3
     },
     {
       "name": "hannah williams",
@@ -6603,10 +6603,10 @@
       "pause_since_box2": false,
       "pause_reason": "",
       "eater_type": "grazer",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 12.65,
+      "talk_time_display": "12:39",
+      "talk_time_category": "Short",
+      "lead_attempts": 2
     },
     {
       "name": "kathy walker",
@@ -7211,10 +7211,10 @@
       "pause_since_box2": true,
       "pause_reason": "sadly_my_cat_is_no_longer_here",
       "eater_type": "fussy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 30.78,
+      "talk_time_display": "30:47",
+      "talk_time_category": "Long",
+      "lead_attempts": 1
     },
     {
       "name": "faith hill",
@@ -7627,10 +7627,10 @@
       "pause_since_box2": true,
       "pause_reason": "price",
       "eater_type": "greedy",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 17.55,
+      "talk_time_display": "17:33",
+      "talk_time_category": "Medium",
+      "lead_attempts": 15
     },
     {
       "name": "amanda goodhand",
@@ -7979,10 +7979,10 @@
       "pause_since_box2": true,
       "pause_reason": "price",
       "eater_type": "grazer",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 13.65,
+      "talk_time_display": "13:39",
+      "talk_time_category": "Short",
+      "lead_attempts": 1
     },
     {
       "name": "kyra poulter",
@@ -8114,7 +8114,7 @@
     },
     {
       "name": "jessica hawkins",
-      "agent": "Christian",
+      "agent": "Morris Christian",
       "phone": "+447908469376",
       "email": "essicahawkss@hotmail.co.uk",
       "sub_date": "2026-03-24",
@@ -8123,10 +8123,10 @@
       "pause_since_box2": true,
       "pause_reason": "i’m_coming_back",
       "eater_type": "habitual",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 0.0,
+      "talk_time_display": "0:00",
+      "talk_time_category": "Short",
+      "lead_attempts": 4
     },
     {
       "name": "charlotte durham",
@@ -8331,10 +8331,10 @@
       "pause_since_box2": false,
       "pause_reason": "pet_did_not_eat_food",
       "eater_type": "grazer",
-      "talk_time_mins": null,
-      "talk_time_display": "—",
-      "talk_time_category": null,
-      "lead_attempts": null
+      "talk_time_mins": 26.27,
+      "talk_time_display": "26:16",
+      "talk_time_category": "Long",
+      "lead_attempts": 2
     },
     {
       "name": "gareth wynn-jones",
@@ -22561,7 +22561,7 @@
       "lead_attempts": null
     }
   ],
-  "matched": 487,
+  "matched": 522,
   "total": 1410,
-  "generated_at": "2026-06-11T12:51:47.238856Z"
+  "generated_at": "2026-06-11T13:11:55.350831Z"
 }

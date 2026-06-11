@@ -250,7 +250,7 @@ tbody td{padding:.5rem .875rem;font-size:13px;color:var(--mr-text);vertical-alig
   </div>
 </div>
 
-<div class="footer">Generated 11 Jun 2026 at 12:51 UTC · Marro Retained Dashboard</div>
+<div class="footer">Generated 11 Jun 2026 at 13:11 UTC · Marro Retained Dashboard</div>
 
 <script>
 
@@ -533,7 +533,7 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 
-fetch('retained_data.json')
+fetch('retained_data.json?t=' + Date.now())
   .then(r => r.json())
   .then(d => init(d.records, d.matched, d.total))
   .catch(e => { document.body.innerHTML = '<p style="padding:2rem;color:#E92A00">Failed to load data: '+e+'</p>'; });
