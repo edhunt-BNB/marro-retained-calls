@@ -250,7 +250,7 @@ tbody td{padding:.5rem .875rem;font-size:13px;color:var(--mr-text);vertical-alig
   </div>
 </div>
 
-<div class="footer">Generated 11 Jun 2026 at 12:27 UTC · Marro Retained Dashboard</div>
+<div class="footer">Generated 11 Jun 2026 at 12:51 UTC · Marro Retained Dashboard</div>
 
 <script>
 
@@ -458,9 +458,9 @@ function renderAgentChart() {
 
 function renderTalkTimeChart() {
   const el=document.getElementById('chart-talktime'); el.innerHTML='';
-  const cats={Short:0,Medium:0,Long:0,Unmatched:0};
-  const catColors={Short:MR.mustard,Medium:MR.maroon,Long:MR.maroonDark,Unmatched:MR.pink};
-  filteredRecords.forEach(r=>{ const k=r.talk_time_category||'Unmatched'; if(cats[k]!==undefined) cats[k]++; else cats['Unmatched']++; });
+  const cats={Short:0,Medium:0,Long:0,'No call data':0};
+  const catColors={Short:MR.mustard,Medium:MR.maroon,Long:MR.maroonDark,'No call data':MR.pink};
+  filteredRecords.forEach(r=>{ const k=r.talk_time_category||'No call data'; if(cats[k]!==undefined) cats[k]++; else cats['No call data']++; });
   const total=Object.values(cats).reduce((a,b)=>a+b,0);
   if (!total) { el.innerHTML='<p style="color:var(--mr-text-muted);font-size:12px">No data</p>'; return; }
   const W=380,H=200,cx=105,cy=95,R=75,r2=45;
