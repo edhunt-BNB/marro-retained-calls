@@ -1,0 +1,39 @@
+name: Marro Retained Dashboard
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # daily at 08:00 UTC
+  workflow_dispatch:        # manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements_retained.txt
+
+      - name: Generate retained dashboard
+        env:
+          AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
+          GOOGLE_SERVICE_ACCOUNT_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}
+        run: python generate_retained.py
+
+      - name: Commit dashboard output
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/retained.html docs/retained_data.json
+          git diff --cached --quiet || git commit -m "chore: update retained dashboard [skip ci]"
+          git push
