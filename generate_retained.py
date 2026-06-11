@@ -249,7 +249,7 @@ def build_html(records, matched_count, total_count, is_preview=False):
     else:
         data_script  = ""
         fetch_block  = """
-fetch('retained_data.json')
+fetch('retained_data.json?t=' + Date.now())
   .then(r => r.json())
   .then(d => init(d.records, d.matched, d.total))
   .catch(e => { document.body.innerHTML = '<p style="padding:2rem;color:#E92A00">Failed to load data: '+e+'</p>'; });
