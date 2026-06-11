@@ -26,6 +26,23 @@ PREVIEW_HTML   = "preview_retained.html"
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
+def normalise_phone(val):
+    """Normalise phone to UK 07xxx format for cross-system matching.
+    Handles: +447880348948, 447880348948, 07880348948, 7880348948
+    Returns None if the value looks invalid.
+    """
+    if not val:
+        return None
+    digits = re.sub(r"[^\d]", "", str(val))  # strip everything except digits
+    if not digits:
+        return None
+    if digits.startswith("44") and len(digits) >= 12:
+        digits = "0" + digits[2:]   # 447880348948 → 07880348948
+    elif not digits.startswith("0") and len(digits) == 10:
+        digits = "0" + digits       # 7880348948 → 07880348948
+    return digits if len(digits) >= 10 else None
+
+
 def parse_talk_time_minutes(val):
     """Convert Airtable talk-time value → float minutes.
     Airtable duration fields return raw SECONDS as a number via API (e.g. 1079 = 17m59s).
@@ -135,7 +152,12 @@ def fetch_gsheet_rows():
 # ─── Production: fetch Airtable ───────────────────────────────────────────────
 
 def fetch_airtable_map():
-    """Fetch all records from the Airtable view, return dict keyed by lowercase email."""
+    """Fetch all records from Airtable view.
+    Returns (email_map, phone_map) where:
+      email_map : lowercase email  → fields dict
+      phone_map : normalised phone → fields dict
+    Logs a warning if any phone number appears more than once (potential false-match risk).
+    """
     import requests
     pat = os.environ.get("AIRTABLE_PAT", "")
     if not pat:
@@ -144,6 +166,8 @@ def fetch_airtable_map():
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE}/{AIRTABLE_TABLE}"
     params = {"view": AIRTABLE_VIEW, "pageSize": 100}
     email_map = {}
+    phone_map = {}
+    phone_counts = {}  # track duplicates
     while True:
         resp = requests.get(url, headers=headers, params=params)
         resp.raise_for_status()
@@ -153,15 +177,25 @@ def fetch_airtable_map():
             email = str(f.get("EmailAddress", "")).strip().lower()
             if email:
                 email_map[email] = f
+            phone = normalise_phone(f.get("Phone Num", ""))
+            if phone:
+                phone_counts[phone] = phone_counts.get(phone, 0) + 1
+                phone_map[phone] = f  # last record wins if duplicate
         offset = data.get("offset")
         if not offset:
             break
         params["offset"] = offset
-    return email_map
+    # Warn about duplicate phone numbers
+    dupes = {p: c for p, c in phone_counts.items() if c > 1}
+    if dupes:
+        print(f"  WARNING: {len(dupes)} duplicate phone(s) in Airtable — these may cause false matches:")
+        for phone, count in list(dupes.items())[:10]:
+            print(f"    {phone} appears {count} times")
+    return email_map, phone_map
 
 # ─── Production: process records ──────────────────────────────────────────────
 
-def process_records(gsheet_rows, airtable_map):
+def process_records(gsheet_rows, airtable_map, airtable_phone_map):
     """
     Filter GSheet rows where Retained=TRUE, cross-ref Airtable by email,
     return (records_list, matched_count, total_retained_count).
@@ -198,8 +232,15 @@ def process_records(gsheet_rows, airtable_map):
         except Exception:
             days_to_box2 = None
 
-        # Cross-reference Airtable by email
+        # Cross-reference Airtable: try email first, fall back to phone
         at = airtable_map.get(email.lower(), {})
+        match_method = "email"
+        if not at:
+            norm_phone = normalise_phone(phone)
+            if norm_phone:
+                at = airtable_phone_map.get(norm_phone, {})
+                if at:
+                    match_method = "phone"
         if at:
             matched += 1
             talk_time_raw  = at.get("Talk Time")
@@ -816,11 +857,12 @@ def main():
     print(f"  {len(gsheet_rows)} rows fetched")
 
     print("Fetching Airtable data…")
-    airtable_map = fetch_airtable_map()
-    print(f"  {len(airtable_map)} Airtable records indexed")
+    airtable_map, airtable_phone_map = fetch_airtable_map()
+    print(f"  {len(airtable_map)} Airtable records indexed by email")
+    print(f"  {len(airtable_phone_map)} Airtable records indexed by phone")
 
     print("Processing records…")
-    records, matched, total = process_records(gsheet_rows, airtable_map)
+    records, matched, total = process_records(gsheet_rows, airtable_map, airtable_phone_map)
     print(f"  {total} retained customers, {matched} matched to dialer data")
 
     # Write data.json
