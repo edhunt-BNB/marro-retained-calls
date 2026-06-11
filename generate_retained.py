@@ -1,8 +1,775 @@
 #!/usr/bin/env python3
-import os, json, sys, base64
+"""
+generate_retained.py — Marro Retained Dashboard Generator
+Purpose : Fetch retained customers from Google Sheets, cross-reference with Airtable
+          dialer data, and publish retained.html + retained_data.json to docs/.
+Inputs  : Google Sheets (GOOGLE_SERVICE_ACCOUNT_B64 env var)
+          Airtable     (AIRTABLE_PAT env var)
+Outputs : docs/retained.html       — dashboard shell (loads data at runtime via fetch)
+          docs/retained_data.json  — processed records
+Usage   : python3 generate_retained.py            # production (requires credentials)
+          python3 generate_retained.py --preview  # preview with 15 sample records
+Author  : Code Keeper / Hyperagent
+"""
+
+import os, json, sys, base64, math, re
 from datetime import datetime
-PREVIEW_MODE = "--preview" in sys.argv
-def main():
-    print("Marro retained dashboard generator")
-if __name__ == "__main__":
-    main()
+
+PREVIEW_MODE   = "--preview" in sys.argv
+GSHEET_ID      = "1uFIpLfv8gjmu0I7tJcyTIR06WTeamuFdalqp5nNRud4"
+AIRTABLE_BASE  = "appc3AWUlFaHlmdWk"
+AIRTABLE_TABLE = "tblvKTDt7r9JYHqGO"
+AIRTABLE_VIEW  = "viwuTFXvZgTJj5g8o"
+OUT_HTML       = "docs/retained.html"
+OUT_DATA       = "docs/retained_data.json"
+PREVIEW_HTML   = "preview_retained.html"
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def parse_talk_time_minutes(val):
+    """Convert Airtable talk-time value (MM:SS, HH:MM:SS, or decimal) → float minutes."""
+    if not val:
+        return None
+    s = str(val).strip()
+    if not s or s in ("0", "0:00", "00:00"):
+        return 0.0
+    if ":" in s:
+        parts = s.split(":")
+        try:
+            if len(parts) == 2:
+                return int(parts[0]) + int(parts[1]) / 60
+            elif len(parts) == 3:
+                return int(parts[0]) * 60 + int(parts[1]) + int(parts[2]) / 60
+        except Exception:
+            return None
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+def categorise(mins):
+    if mins is None:
+        return None
+    if mins < 15:
+        return "Short"
+    if mins < 20:
+        return "Medium"
+    return "Long"
+
+def fmt_mins(mins):
+    if mins is None:
+        return "—"
+    m = int(mins)
+    s = int(round((mins - m) * 60))
+    return f"{m}:{s:02d}"
+
+# ─── Sample data (preview mode) ───────────────────────────────────────────────
+
+SAMPLE_RECORDS = [
+    {"name": "Melanie Lock",    "agent": "Suzanne Ralston", "phone": "07400578835", "email": "m.lock18@hotmail.co.uk",  "sub_date": "2026-06-10", "days_to_box2": 3,  "time_active": "12 days",  "pause_since_box2": False, "pause_reason": "",                    "eater_type": "Grazer",  "talk_time_mins": 5.0,  "lead_attempts": 2},
+    {"name": "Tammy James",     "agent": "Suzanne Ralston", "phone": "07400500590", "email": "maketammy6@gmail.com",    "sub_date": "2026-06-09", "days_to_box2": 4,  "time_active": "14 days",  "pause_since_box2": False, "pause_reason": "",                    "eater_type": "Gobbler", "talk_time_mins": 13.6, "lead_attempts": 2},
+    {"name": "Amy Holland",     "agent": "Dylan Smith",     "phone": "07931956831", "email": "amy.holland@yahoo.com",   "sub_date": "2026-06-08", "days_to_box2": 5,  "time_active": "16 days",  "pause_since_box2": True,  "pause_reason": "Going on holiday",    "eater_type": "Grazer",  "talk_time_mins": 13.7, "lead_attempts": 3},
+    {"name": "John Carter",     "agent": "Maria Okonkwo",   "phone": "07712345678", "email": "john.c@gmail.com",        "sub_date": "2026-05-20", "days_to_box2": 8,  "time_active": "32 days",  "pause_since_box2": False, "pause_reason": "",                    "eater_type": "Gobbler", "talk_time_mins": 17.5, "lead_attempts": 1},
+    {"name": "Sarah Bennett",   "agent": "Suzanne Ralston", "phone": "07823456789", "email": "sbennett@hotmail.com",    "sub_date": "2026-05-15", "days_to_box2": 6,  "time_active": "37 days",  "pause_since_box2": False, "pause_reason": "",                    "eater_type": "Nibbler", "talk_time_mins": 22.3, "lead_attempts": 4},
+    {"name": "Tom Walsh",       "agent": "Dylan Smith",     "phone": "07934567890", "email": "tomwalsh@gmail.com",      "sub_date": "2026-05-10", "days_to_box2": 12, "time_active": "42 days",  "pause_since_box2": True,  "pause_reason": "Too much food",       "eater_type": "Grazer",  "talk_time_mins": None, "lead_attempts": None},
+    {"name": "Claire Murphy",   "agent": "Maria Okonkwo",   "phone": "07845678901", "email": "claire.m@outlook.com",    "sub_date": "2026-05-05", "days_to_box2": 7,  "time_active": "47 days",  "pause_since_box2": False, "pause_reason": "",                    "eater_type": "Gobbler", "talk_time_mins": 9.2,  "lead_attempts": 2},
+    {"name": "Steve Perkins",   "agent": "James Taylor",    "phone": "07756789012", "email": "stevep@gmail.com",        "sub_date": "2026-04-30", "days_to_box2": 4,  "time_active": "52 days",  "pause_since_box2": False, "pause_reason": "",                    "eater_type": "Nibbler", "talk_time_mins": 18.1, "lead_attempts": 3},
+    {"name": "Rachel Green",    "agent": "James Taylor",    "phone": "07667890123", "email": "rgreen@yahoo.co.uk",      "sub_date": "2026-04-25", "days_to_box2": 9,  "time_active": "57 days",  "pause_since_box2": True,  "pause_reason": "Financial reasons",   "eater_type": "Grazer",  "talk_time_mins": 25.7, "lead_attempts": 5},
+    {"name": "Mark Thompson",   "agent": "Suzanne Ralston", "phone": "07578901234", "email": "mark.t@gmail.com",        "sub_date": "2026-04-20", "days_to_box2": 3,  "time_active": "62 days",  "pause_since_box2": False, "pause_reason": "",                    "eater_type": "Gobbler", "talk_time_mins": 11.4, "lead_attempts": 1},
+    {"name": "Lisa Evans",      "agent": "Dylan Smith",     "phone": "07489012345", "email": "lisaevans@hotmail.com",   "sub_date": "2026-04-15", "days_to_box2": 15, "time_active": "67 days",  "pause_since_box2": False, "pause_reason": "",                    "eater_type": "Nibbler", "talk_time_mins": None, "lead_attempts": None},
+    {"name": "Paul Davies",     "agent": "Maria Okonkwo",   "phone": "07390123456", "email": "pauldavies@gmail.com",    "sub_date": "2026-04-10", "days_to_box2": 6,  "time_active": "72 days",  "pause_since_box2": True,  "pause_reason": "Moving house",        "eater_type": "Grazer",  "talk_time_mins": 16.8, "lead_attempts": 2},
+    {"name": "Karen Wilson",    "agent": "James Taylor",    "phone": "07201234567", "email": "kwilson@outlook.com",     "sub_date": "2026-04-05", "days_to_box2": 5,  "time_active": "77 days",  "pause_since_box2": False, "pause_reason": "",                    "eater_type": "Gobbler", "talk_time_mins": 8.3,  "lead_attempts": 3},
+    {"name": "Chris Brown",     "agent": "Suzanne Ralston", "phone": "07112345678", "email": "cbrown@gmail.com",        "sub_date": "2026-03-30", "days_to_box2": 10, "time_active": "83 days",  "pause_since_box2": False, "pause_reason": "",                    "eater_type": "Nibbler", "talk_time_mins": 21.5, "lead_attempts": 4},
+    {"name": "Helen Fox",       "agent": "Dylan Smith",     "phone": "07023456789", "email": "helen.fox@yahoo.com",     "sub_date": "2026-03-25", "days_to_box2": 4,  "time_active": "88 days",  "pause_since_box2": True,  "pause_reason": "Cat not eating it",   "eater_type": "Grazer",  "talk_time_mins": 14.2, "lead_attempts": 2},
+]
+
+for r in SAMPLE_RECORDS:
+    r["talk_time_category"] = categorise(r["talk_time_mins"])
+    r["talk_time_display"]  = fmt_mins(r["talk_time_mins"])
+
+# ─── Production: fetch Google Sheets ──────────────────────────────────────────
+
+def fetch_gsheet_rows():
+    """Fetch all rows from GSheet, return list of dicts keyed by header."""
+    import requests, tempfile
+    sa_raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_B64", "")
+    if not sa_raw:
+        raise ValueError("GOOGLE_SERVICE_ACCOUNT_B64 not set")
+    # Accept either raw JSON or base64-encoded JSON
+    sa_raw = sa_raw.strip()
+    if sa_raw.startswith("{"):
+        sa_info = json.loads(sa_raw)
+    else:
+        sa_info = json.loads(base64.b64decode(sa_raw).decode("utf-8"))
+
+    # Use google-auth to get a token
+    import google.oauth2.service_account as sa_module
+    import google.auth.transport.requests as ga_requests
+    creds = sa_module.Credentials.from_service_account_info(
+        sa_info,
+        scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    )
+    creds.refresh(ga_requests.Request())
+    token = creds.token
+
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{GSHEET_ID}/values/Sheet1"
+    resp = requests.get(url, headers={"Authorization": f"Bearer {token}"})
+    resp.raise_for_status()
+    values = resp.json().get("values", [])
+    if not values:
+        return []
+    headers = [h.strip() for h in values[0]]
+    rows = []
+    for row in values[1:]:
+        # Pad row to header length
+        padded = row + [""] * (len(headers) - len(row))
+        rows.append(dict(zip(headers, padded)))
+    return rows
+
+# ─── Production: fetch Airtable ───────────────────────────────────────────────
+
+def fetch_airtable_map():
+    """Fetch all records from the Airtable view, return dict keyed by lowercase email."""
+    import requests
+    pat = os.environ.get("AIRTABLE_PAT", "")
+    if not pat:
+        raise ValueError("AIRTABLE_PAT not set")
+    headers = {"Authorization": f"Bearer {pat}"}
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE}/{AIRTABLE_TABLE}"
+    params = {"view": AIRTABLE_VIEW, "pageSize": 100}
+    email_map = {}
+    while True:
+        resp = requests.get(url, headers=headers, params=params)
+        resp.raise_for_status()
+        data = resp.json()
+        for rec in data.get("records", []):
+            f = rec.get("fields", {})
+            email = str(f.get("EmailAddress", "")).strip().lower()
+            if email:
+                email_map[email] = f
+        offset = data.get("offset")
+        if not offset:
+            break
+        params["offset"] = offset
+    return email_map
+
+# ─── Production: process records ──────────────────────────────────────────────
+
+def process_records(gsheet_rows, airtable_map):
+    """
+    Filter GSheet rows where Retained=TRUE, cross-ref Airtable by email,
+    return (records_list, matched_count, total_retained_count).
+    """
+    records = []
+    matched = 0
+    for row in gsheet_rows:
+        retained = str(row.get("Retained", "")).strip().upper()
+        if retained not in ("TRUE", "YES", "1", "TRUE"):
+            continue
+        email   = str(row.get("Email", "")).strip()
+        name    = f"{row.get('First Name','').strip()} {row.get('Last Name','').strip()}".strip()
+        agent   = str(row.get("Agent Name", "")).strip()
+        phone   = str(row.get("Phone Number", "")).strip()
+        sub_date= str(row.get("Subscription Created Date", "")).strip()
+        eater   = str(row.get("Eater Type", "")).strip()
+        days_raw= str(row.get("Days to Box 2", "")).strip()
+        time_act= str(row.get("Time Active", "")).strip()
+        pause   = str(row.get("Pause Since Box 2", "")).strip().upper() in ("TRUE","YES","1")
+
+        try:
+            days_to_box2 = int(float(days_raw)) if days_raw else None
+        except Exception:
+            days_to_box2 = None
+
+        # Cross-reference Airtable by email
+        at = airtable_map.get(email.lower(), {})
+        if at:
+            matched += 1
+            talk_time_raw  = at.get("Talk Time")
+            talk_time_mins = parse_talk_time_minutes(talk_time_raw)
+            lead_attempts  = at.get("Lead Total Attempts")
+            # Prefer Airtable agent name if available
+            at_agent = f"{at.get('Agent First Name','').strip()} {at.get('Agent Last Name','').strip()}".strip()
+            if at_agent:
+                agent = at_agent
+        else:
+            talk_time_mins = None
+            lead_attempts  = None
+
+        pause_reason = str(row.get("First Pause Reason", "")).strip()
+
+        records.append({
+            "name":              name,
+            "agent":             agent,
+            "phone":             phone,
+            "email":             email,
+            "sub_date":          sub_date,
+            "days_to_box2":      days_to_box2,
+            "time_active":       time_act,
+            "pause_since_box2":  pause,
+            "pause_reason":      pause_reason,
+            "eater_type":        eater,
+            "talk_time_mins":    round(talk_time_mins, 2) if talk_time_mins is not None else None,
+            "talk_time_display": fmt_mins(talk_time_mins),
+            "talk_time_category":categorise(talk_time_mins),
+            "lead_attempts":     lead_attempts,
+        })
+
+    return records, matched, len(records)
+
+# ─── HTML builder ─────────────────────────────────────────────────────────────
+
+def build_html(records, matched_count, total_count, is_preview=False):
+    records_json = json.dumps(records, ensure_ascii=False)
+    generated_at = datetime.utcnow().strftime("%-d %b %Y at %H:%M UTC")
+
+    if is_preview:
+        data_script = f"const RECORDS = {records_json};\nconst MATCHED = {matched_count};\nconst TOTAL = {total_count};"
+        fetch_block  = "init(RECORDS, MATCHED, TOTAL);"
+    else:
+        data_script  = ""
+        fetch_block  = """
+fetch('retained_data.json')
+  .then(r => r.json())
+  .then(d => init(d.records, d.matched, d.total))
+  .catch(e => { document.body.innerHTML = '<p style="padding:2rem;color:#E92A00">Failed to load data: '+e+'</p>'; });
+"""
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marro Retained Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{{
+  --mr-maroon:      #80020F;
+  --mr-maroon-dark: #3A070D;
+  --mr-mustard:     #C88131;
+  --mr-mustard-lt:  #F2C798;
+  --mr-pink:        #E2C5C5;
+  --mr-pink-pale:   #F6ECEC;
+  --mr-bg:          #FDF9F9;
+  --mr-surface:     #FFFFFF;
+  --mr-text:        #240205;
+  --mr-text-head:   #451219;
+  --mr-text-muted:  #816165;
+  --mr-border:      #E2C5C5;
+  --mr-hover:       #F6ECEC;
+  --mr-font:        'Bricolage Grotesque', 'Segoe UI', sans-serif;
+}}
+*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:var(--mr-font);background:var(--mr-bg);color:var(--mr-text);font-size:14px;line-height:1.5}}
+
+/* ── Header ── */
+.hdr{{background:var(--mr-maroon-dark);color:#fff;padding:0 1.25rem;height:46px;display:flex;align-items:center;gap:.75rem;position:sticky;top:0;z-index:100;border-bottom:2px solid var(--mr-maroon)}}
+.hdr-title{{font-weight:800;font-size:15px;letter-spacing:.01em;color:#fff}}
+.hdr-count{{font-size:13px;color:rgba(255,255,255,.6);font-weight:400}}
+.hdr-spacer{{flex:1}}
+.hdr-icon{{width:30px;height:30px;border-radius:6px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.75);transition:background .15s}}
+.hdr-icon:hover{{background:rgba(255,255,255,.2)}}
+
+/* ── Subheader ── */
+.sub{{background:var(--mr-surface);padding:.875rem 1.25rem;border-bottom:1px solid var(--mr-border);display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.5rem}}
+.sub-left h1{{font-size:18px;font-weight:700;color:var(--mr-text-head)}}
+.sub-left p{{font-size:12px;color:var(--mr-text-muted);margin-top:3px}}
+.btn-export{{display:flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid var(--mr-border);border-radius:7px;background:var(--mr-surface);font-size:13px;font-weight:600;color:var(--mr-text-head);cursor:pointer;white-space:nowrap;font-family:var(--mr-font)}}
+.btn-export:hover{{background:var(--mr-hover);border-color:var(--mr-pink)}}
+
+/* ── Stat cards ── */
+.stats{{display:flex;gap:.625rem;padding:.875rem 1.25rem;background:var(--mr-surface);border-bottom:1px solid var(--mr-border);overflow-x:auto}}
+.stat{{flex:1;min-width:115px;padding:.75rem .875rem;border:1px solid var(--mr-border);border-radius:10px;cursor:pointer;transition:box-shadow .15s,border-color .15s;background:var(--mr-surface)}}
+.stat:hover{{box-shadow:0 2px 10px rgba(128,2,15,.08);border-color:var(--mr-pink)}}
+.stat.active{{border-color:var(--mr-mustard);box-shadow:0 0 0 1.5px var(--mr-mustard)}}
+.stat-label{{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mr-text-muted);margin-bottom:6px}}
+.stat-value{{font-size:28px;font-weight:800;line-height:1}}
+.stat-sub{{font-size:11px;color:var(--mr-text-muted);margin-top:4px;font-weight:400}}
+.stat-total  .stat-value{{color:var(--mr-maroon)}}
+.stat-short  .stat-value{{color:var(--mr-mustard)}}
+.stat-medium .stat-value{{color:var(--mr-maroon)}}
+.stat-long   .stat-value{{color:var(--mr-maroon-dark)}}
+.stat-pause  .stat-value{{color:var(--mr-mustard)}}
+.stat-days   .stat-value{{color:var(--mr-maroon)}}
+
+/* ── Filter bar ── */
+.filters{{background:var(--mr-surface);padding:.625rem 1.25rem;border-bottom:1px solid var(--mr-border);display:flex;align-items:center;gap:.625rem;flex-wrap:wrap}}
+.search-wrap{{position:relative;flex:1;min-width:180px;max-width:280px}}
+.search-wrap svg{{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--mr-text-muted);pointer-events:none}}
+.search-wrap input{{width:100%;padding:6px 10px 6px 30px;border:1px solid var(--mr-border);border-radius:8px;font-size:13px;outline:none;font-family:var(--mr-font);background:var(--mr-bg);color:var(--mr-text)}}
+.search-wrap input:focus{{border-color:var(--mr-mustard);box-shadow:0 0 0 2px rgba(200,129,49,.15)}}
+.agent-select{{padding:6px 10px;border:1px solid var(--mr-border);border-radius:8px;font-size:13px;background:var(--mr-bg);cursor:pointer;outline:none;color:var(--mr-text);font-family:var(--mr-font)}}
+.agent-select:focus{{border-color:var(--mr-mustard)}}
+.chips{{display:flex;gap:4px}}
+.chip{{padding:5px 14px;border-radius:20px;border:1px solid var(--mr-border);font-size:12px;font-weight:600;cursor:pointer;background:var(--mr-surface);color:var(--mr-text-muted);transition:all .15s;font-family:var(--mr-font)}}
+.chip:hover{{border-color:var(--mr-pink);color:var(--mr-text-head)}}
+.chip.active{{background:var(--mr-maroon-dark);color:#fff;border-color:var(--mr-maroon-dark)}}
+.chip.short.active{{background:var(--mr-mustard);color:#fff;border-color:var(--mr-mustard)}}
+.chip.medium.active{{background:var(--mr-maroon);color:#fff;border-color:var(--mr-maroon)}}
+.chip.long.active{{background:var(--mr-maroon-dark);color:#fff;border-color:var(--mr-maroon-dark)}}
+.toggle-wrap{{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mr-text-muted);cursor:pointer;user-select:none;font-weight:500}}
+.toggle{{width:38px;height:20px;border-radius:10px;background:var(--mr-border);position:relative;transition:background .2s;flex-shrink:0}}
+.toggle.on{{background:var(--mr-maroon)}}
+.toggle::after{{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:8px;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}}
+.toggle.on::after{{transform:translateX(18px)}}
+.rec-count{{margin-left:auto;font-size:12px;color:var(--mr-text-muted);white-space:nowrap;font-weight:600}}
+
+/* ── Tabs ── */
+.tabs{{background:var(--mr-surface);border-bottom:1px solid var(--mr-border);padding:0 1.25rem;display:flex;gap:0}}
+.tab{{padding:.625rem 1.125rem;font-size:13px;font-weight:600;color:var(--mr-text-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;font-family:var(--mr-font)}}
+.tab.active{{color:var(--mr-maroon);border-bottom-color:var(--mr-maroon)}}
+.tab:hover{{color:var(--mr-text-head)}}
+
+/* ── Tab panes ── */
+.pane{{display:none;padding:1rem 1.25rem}}
+.pane.active{{display:block}}
+
+/* ── Chart grid ── */
+.chart-grid{{display:grid;grid-template-columns:1fr 1fr;gap:1rem}}
+.chart-card{{background:var(--mr-surface);border:1px solid var(--mr-border);border-radius:10px;padding:1.25rem}}
+.chart-title{{font-size:13px;font-weight:700;color:var(--mr-text-head);margin-bottom:1rem;letter-spacing:.01em}}
+
+/* ── Table ── */
+.tbl-wrap{{background:var(--mr-surface);border:1px solid var(--mr-border);border-radius:10px;overflow:auto}}
+table{{width:100%;border-collapse:collapse;min-width:900px}}
+thead th{{background:var(--mr-pink-pale);padding:.6rem .875rem;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mr-text-head);border-bottom:2px solid var(--mr-maroon);cursor:pointer;white-space:nowrap;user-select:none}}
+thead th:hover{{color:var(--mr-maroon);background:var(--mr-pink)}}
+thead th .sort-icon{{display:inline-block;margin-left:4px;opacity:.35;font-size:10px}}
+thead th.sorted .sort-icon{{opacity:1;color:var(--mr-mustard)}}
+tbody tr{{border-bottom:1px solid var(--mr-pink-pale);transition:background .1s}}
+tbody tr:last-child{{border-bottom:none}}
+tbody tr:hover{{background:var(--mr-hover)}}
+tbody td{{padding:.5rem .875rem;font-size:13px;color:var(--mr-text);vertical-align:middle}}
+.time-cell{{display:flex;flex-direction:column;gap:2px}}
+.time-val{{font-weight:600;font-size:13px;color:var(--mr-text-head);font-variant-numeric:tabular-nums}}
+.badge{{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.03em}}
+.badge-short{{background:#FFF5E6;color:#C88131;border:1px solid #F2C798}}
+.badge-medium{{background:#FBEEEE;color:#80020F;border:1px solid #E2C5C5}}
+.badge-long{{background:#F0E5E7;color:#3A070D;border:1px solid #E2C5C5}}
+.badge-none{{background:var(--mr-pink-pale);color:var(--mr-text-muted)}}
+.pause-yes{{color:var(--mr-mustard);font-weight:700}}
+.pause-no{{color:var(--mr-text-muted)}}
+.eater-pill{{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:var(--mr-pink-pale);color:var(--mr-text-head)}}
+
+/* ── Footer ── */
+.footer{{text-align:center;padding:1.5rem;font-size:11px;color:var(--mr-text-muted)}}
+
+/* ── Responsive ── */
+@media(max-width:700px){{
+  .chart-grid{{grid-template-columns:1fr}}
+  .stats{{gap:.375rem}}
+  .stat{{min-width:95px}}
+  .stat-value{{font-size:22px}}
+}}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="hdr">
+  <span class="hdr-title">Marro Retained Dashboard</span>
+  <span class="hdr-count" id="hdrCount">— Loading…</span>
+  <span class="hdr-spacer"></span>
+  <span class="hdr-icon" title="Toggle pause filter" onclick="togglePauseFromHeader()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+  </span>
+  <span class="hdr-icon" title="Fullscreen" onclick="document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+  </span>
+</header>
+
+<!-- Sub-header -->
+<div class="sub">
+  <div class="sub-left">
+    <h1>Retained Subscription Report</h1>
+    <p id="subMeta">GSheet × Airtable · Loading…</p>
+  </div>
+  <button class="btn-export" onclick="exportCSV()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Export CSV
+  </button>
+</div>
+
+<!-- Stat cards -->
+<div class="stats">
+  <div class="stat stat-total" id="card-all" onclick="setChip('all')">
+    <div class="stat-label">Total Retained</div>
+    <div class="stat-value" id="stat-total">—</div>
+    <div class="stat-sub" id="stat-total-sub">All agents</div>
+  </div>
+  <div class="stat stat-short" id="card-short" onclick="setChip('short')">
+    <div class="stat-label">Short Call</div>
+    <div class="stat-value" id="stat-short">—</div>
+    <div class="stat-sub">&lt; 15 min</div>
+  </div>
+  <div class="stat stat-medium" id="card-medium" onclick="setChip('medium')">
+    <div class="stat-label">Medium Call</div>
+    <div class="stat-value" id="stat-medium">—</div>
+    <div class="stat-sub">15 – 20 min</div>
+  </div>
+  <div class="stat stat-long" id="card-long" onclick="setChip('long')">
+    <div class="stat-label">Long Call</div>
+    <div class="stat-value" id="stat-long">—</div>
+    <div class="stat-sub">20+ min</div>
+  </div>
+  <div class="stat stat-pause" onclick="document.getElementById('pauseToggle').click()">
+    <div class="stat-label">With Pause</div>
+    <div class="stat-value" id="stat-pause">—</div>
+    <div class="stat-sub">Since box 2</div>
+  </div>
+  <div class="stat stat-days">
+    <div class="stat-label">Avg Days to Box 2</div>
+    <div class="stat-value" id="stat-days">—</div>
+    <div class="stat-sub" id="stat-days-sub">Across filtered</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+  <div class="search-wrap">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="searchInput" placeholder="Search name, phone, email…" oninput="onSearch(this.value)">
+  </div>
+  <select class="agent-select" id="agentFilter" onchange="onAgentChange(this.value)">
+    <option value="all">All Agents ▾</option>
+  </select>
+  <div class="chips">
+    <span class="chip active" id="chip-all"    onclick="setChip('all')">All</span>
+    <span class="chip short"  id="chip-short"  onclick="setChip('short')">Short</span>
+    <span class="chip medium" id="chip-medium" onclick="setChip('medium')">Medium</span>
+    <span class="chip long"   id="chip-long"   onclick="setChip('long')">Long</span>
+  </div>
+  <label class="toggle-wrap">
+    <span class="toggle" id="pauseToggle" onclick="togglePause()"></span>
+    No pause since box 2
+  </label>
+  <span class="rec-count" id="recordCount"></span>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <span class="tab active" id="tab-dashboard"  onclick="switchTab('dashboard')">Dashboard</span>
+  <span class="tab"        id="tab-allrecords" onclick="switchTab('allrecords')">All Records</span>
+</div>
+
+<!-- Dashboard pane -->
+<div class="pane active" id="pane-dashboard">
+  <div class="chart-grid">
+    <div class="chart-card"><div class="chart-title">Retention by Agent</div><div id="chart-agent"></div></div>
+    <div class="chart-card"><div class="chart-title">Talk Time Distribution</div><div id="chart-talktime"></div></div>
+    <div class="chart-card"><div class="chart-title">Days to Box 2</div><div id="chart-days"></div></div>
+    <div class="chart-card"><div class="chart-title">Eater Type</div><div id="chart-eater"></div></div>
+  </div>
+</div>
+
+<!-- All Records pane -->
+<div class="pane" id="pane-allrecords">
+  <div class="tbl-wrap">
+    <table id="mainTable">
+      <thead>
+        <tr>
+          <th onclick="sortTable('name')">Customer <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('agent')">Agent <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('phone')">Phone <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('sub_date')">Sub Date <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('days_to_box2')">Days to Box 2 <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('talk_time_mins')">Talk Time <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('lead_attempts')">Lead Attempts <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('eater_type')">Eater Type <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('pause_since_box2')">Pause <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('pause_reason')">Pause Reason <span class="sort-icon">↕</span></th>
+          <th onclick="sortTable('time_active')">Time Active <span class="sort-icon">↕</span></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">Generated {generated_at} · Marro Retained Dashboard</div>
+
+<script>
+{data_script}
+
+// ── Marro brand colours for SVG charts ────────────────────────────────────
+const MR = {{
+  maroon:    '#80020F',
+  maroonDark:'#3A070D',
+  mustard:   '#C88131',
+  mustardLt: '#F2C798',
+  pink:      '#E2C5C5',
+  pinkPale:  '#F6ECEC',
+  muted:     '#816165',
+}};
+const CHART_PALETTE = [MR.maroon, MR.mustard, MR.maroonDark, MR.mustardLt, MR.pink, '#634345', '#B07040', '#9A3050'];
+
+// ── State ──────────────────────────────────────────────────────────────────
+let allRecords = [], filteredRecords = [];
+let activeChip = 'all', noPause = false, agentFilter = 'all', searchQ = '';
+let sortCol = null, sortDir = 'asc';
+
+// ── Init ───────────────────────────────────────────────────────────────────
+function init(records, matched, total) {{
+  allRecords = records;
+  document.getElementById('hdrCount').textContent = '— ' + total.toLocaleString() + ' Retained';
+  document.getElementById('subMeta').textContent =
+    'GSheet × Airtable · ' + matched.toLocaleString() + ' of ' + total.toLocaleString() + ' matched to dialer data';
+  const agents = [...new Set(allRecords.map(r => r.agent).filter(Boolean))].sort();
+  const sel = document.getElementById('agentFilter');
+  agents.forEach(a => {{ const o = document.createElement('option'); o.value=a; o.textContent=a; sel.appendChild(o); }});
+  applyFilters();
+}}
+
+// ── Filtering ──────────────────────────────────────────────────────────────
+function applyFilters() {{
+  const q = searchQ.toLowerCase();
+  filteredRecords = allRecords.filter(r => {{
+    if (activeChip !== 'all' && (r.talk_time_category||'').toLowerCase() !== activeChip) return false;
+    if (noPause && r.pause_since_box2) return false;
+    if (agentFilter !== 'all' && r.agent !== agentFilter) return false;
+    if (q && !((r.name||'').toLowerCase().includes(q)||(r.phone||'').includes(q)||(r.email||'').toLowerCase().includes(q))) return false;
+    return true;
+  }});
+  if (sortCol) sortData();
+  renderStats(); renderCharts(); renderTable();
+  document.getElementById('recordCount').textContent = filteredRecords.length.toLocaleString() + ' records';
+}}
+
+function setChip(val) {{
+  activeChip = val;
+  ['all','short','medium','long'].forEach(c => {{
+    document.getElementById('chip-'+c).classList.toggle('active', c===val);
+    const card = document.getElementById('card-'+c);
+    if (card) card.classList.toggle('active', c===val);
+  }});
+  applyFilters();
+}}
+function togglePause() {{
+  noPause = !noPause;
+  document.getElementById('pauseToggle').classList.toggle('on', noPause);
+  applyFilters();
+}}
+function togglePauseFromHeader() {{ togglePause(); }}
+function onSearch(v) {{ searchQ = v; applyFilters(); }}
+function onAgentChange(v) {{ agentFilter = v; applyFilters(); }}
+
+// ── Stats ──────────────────────────────────────────────────────────────────
+function renderStats() {{
+  const r = filteredRecords;
+  const short  = r.filter(x=>x.talk_time_category==='Short').length;
+  const medium = r.filter(x=>x.talk_time_category==='Medium').length;
+  const long   = r.filter(x=>x.talk_time_category==='Long').length;
+  const pause  = r.filter(x=>x.pause_since_box2).length;
+  const days   = r.map(x=>x.days_to_box2).filter(d=>d!=null&&d>0);
+  const avg    = days.length ? Math.round(days.reduce((a,b)=>a+b,0)/days.length) : '—';
+  document.getElementById('stat-total').textContent  = r.length.toLocaleString();
+  document.getElementById('stat-short').textContent  = short.toLocaleString();
+  document.getElementById('stat-medium').textContent = medium.toLocaleString();
+  document.getElementById('stat-long').textContent   = long.toLocaleString();
+  document.getElementById('stat-pause').textContent  = pause.toLocaleString();
+  document.getElementById('stat-days').textContent   = avg;
+  document.getElementById('stat-total-sub').textContent = agentFilter!=='all' ? agentFilter : 'All agents';
+}}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+function switchTab(t) {{
+  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.pane').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  document.getElementById('pane-'+t).classList.add('active');
+}}
+
+// ── Table ──────────────────────────────────────────────────────────────────
+const COL_KEYS = ['name','agent','phone','sub_date','days_to_box2','talk_time_mins','lead_attempts','eater_type','pause_since_box2','pause_reason','time_active'];
+
+function renderTable() {{
+  const tbody = document.getElementById('tableBody');
+  if (!filteredRecords.length) {{
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--mr-text-muted)">No records match the current filters</td></tr>`;
+    return;
+  }}
+  tbody.innerHTML = filteredRecords.map(r => {{
+    const cat = r.talk_time_category;
+    const timeCell = cat
+      ? `<div class="time-cell"><span class="time-val">${{esc(r.talk_time_display)}}</span><span class="badge badge-${{cat.toLowerCase()}}">${{cat}}</span></div>`
+      : `<span style="color:var(--mr-text-muted)">—</span>`;
+    const pause = r.pause_since_box2
+      ? '<span class="pause-yes">Yes</span>'
+      : '<span class="pause-no">No</span>';
+    const subDate = r.sub_date ? r.sub_date.slice(0,10) : '—';
+    const eater = r.eater_type ? `<span class="eater-pill">${{esc(r.eater_type)}}</span>` : '<span style="color:var(--mr-text-muted)">—</span>';
+    return `<tr>
+      <td style="font-weight:600;color:var(--mr-text-head)">${{esc(r.name)}}</td>
+      <td>${{esc(r.agent||'—')}}</td>
+      <td style="font-variant-numeric:tabular-nums">${{esc(r.phone||'—')}}</td>
+      <td>${{subDate}}</td>
+      <td style="font-weight:600;text-align:center">${{r.days_to_box2!=null?r.days_to_box2:'—'}}</td>
+      <td>${{timeCell}}</td>
+      <td style="text-align:center">${{r.lead_attempts!=null?r.lead_attempts:'—'}}</td>
+      <td>${{eater}}</td>
+      <td>${{pause}}</td>
+      <td style="color:var(--mr-text-muted);font-size:12px">${{esc(r.pause_reason||'—')}}</td>
+      <td style="color:var(--mr-text-muted)">${{esc(r.time_active||'—')}}</td>
+    </tr>`;
+  }}).join('');
+}}
+
+function sortTable(col) {{
+  if (sortCol===col) {{ sortDir = sortDir==='asc'?'desc':'asc'; }}
+  else {{ sortCol=col; sortDir='asc'; }}
+  document.querySelectorAll('thead th').forEach(th=>th.classList.remove('sorted'));
+  const idx = COL_KEYS.indexOf(col);
+  if (idx>=0) document.querySelectorAll('thead th')[idx].classList.add('sorted');
+  sortData(); renderTable();
+}}
+
+function sortData() {{
+  filteredRecords.sort((a,b) => {{
+    let va=a[sortCol], vb=b[sortCol];
+    if (va==null) va=''; if (vb==null) vb='';
+    if (typeof va==='boolean') va=va?1:0;
+    if (typeof vb==='boolean') vb=vb?1:0;
+    if (!isNaN(Number(va))&&!isNaN(Number(vb))&&va!==''&&vb!=='') return sortDir==='asc'?Number(va)-Number(vb):Number(vb)-Number(va);
+    return sortDir==='asc'?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));
+  }});
+}}
+
+// ── CSV Export ─────────────────────────────────────────────────────────────
+function exportCSV() {{
+  const cols = ['name','agent','phone','email','sub_date','days_to_box2','talk_time_display','talk_time_category','lead_attempts','eater_type','pause_since_box2','pause_reason','time_active'];
+  const rows = [cols.join(',')].concat(filteredRecords.map(r =>
+    cols.map(c=>'"'+String(r[c]!=null?r[c]:'').replace(/"/g,'""')+'"').join(',')
+  ));
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(rows.join('\\n'));
+  a.download = 'marro_retained_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}}
+
+// ── SVG helpers ────────────────────────────────────────────────────────────
+function makeSVG(w,h) {{
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('width','100%'); svg.setAttribute('viewBox',`0 0 ${{w}} ${{h}}`);
+  return svg;
+}}
+function svgText(svg,x,y,txt,opts={{}}) {{
+  const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+  t.setAttribute('x',x); t.setAttribute('y',y);
+  t.setAttribute('font-size',opts.size||11); t.setAttribute('fill',opts.color||MR.muted);
+  t.setAttribute('font-family',"'Bricolage Grotesque',sans-serif");
+  if (opts.anchor) t.setAttribute('text-anchor',opts.anchor);
+  if (opts.weight) t.setAttribute('font-weight',opts.weight);
+  t.textContent=txt; svg.appendChild(t); return t;
+}}
+function svgRect(svg,x,y,w,h,fill,rx=4) {{
+  const r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+  r.setAttribute('x',x); r.setAttribute('y',y);
+  r.setAttribute('width',Math.max(0,w)); r.setAttribute('height',Math.max(0,h));
+  r.setAttribute('fill',fill); r.setAttribute('rx',rx);
+  svg.appendChild(r); return r;
+}}
+
+// ── Charts ─────────────────────────────────────────────────────────────────
+function renderCharts() {{ renderAgentChart(); renderTalkTimeChart(); renderDaysChart(); renderEaterChart(); }}
+
+function renderAgentChart() {{
+  const el=document.getElementById('chart-agent'); el.innerHTML='';
+  const counts={{}};
+  filteredRecords.forEach(r=>{{ if(r.agent) counts[r.agent]=(counts[r.agent]||0)+1; }});
+  const entries=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if (!entries.length) {{ el.innerHTML='<p style="color:var(--mr-text-muted);font-size:12px">No data</p>'; return; }}
+  const W=380,barH=24,gap=9,labelW=115,pad=10;
+  const H=entries.length*(barH+gap)+pad*2;
+  const svg=makeSVG(W,H);
+  const maxVal=entries[0][1], barMax=W-labelW-52;
+  entries.forEach(([name,cnt],i) => {{
+    const y=pad+i*(barH+gap);
+    const bw=(cnt/maxVal)*barMax;
+    svgText(svg,0,y+barH-6,name.length>15?name.slice(0,14)+'…':name,{{size:11,color:MR.maroon,anchor:'start',weight:'600'}});
+    svgRect(svg,labelW,y,bw,barH,CHART_PALETTE[i%CHART_PALETTE.length]);
+    svgText(svg,labelW+bw+6,y+barH-6,cnt,{{size:11,color:MR.maroon,weight:'700'}});
+  }});
+  el.appendChild(svg);
+}}
+
+function renderTalkTimeChart() {{
+  const el=document.getElementById('chart-talktime'); el.innerHTML='';
+  const cats={{Short:0,Medium:0,Long:0,Unmatched:0}};
+  const catColors={{Short:MR.mustard,Medium:MR.maroon,Long:MR.maroonDark,Unmatched:MR.pink}};
+  filteredRecords.forEach(r=>{{ const k=r.talk_time_category||'Unmatched'; if(cats[k]!==undefined) cats[k]++; else cats['Unmatched']++; }});
+  const total=Object.values(cats).reduce((a,b)=>a+b,0);
+  if (!total) {{ el.innerHTML='<p style="color:var(--mr-text-muted);font-size:12px">No data</p>'; return; }}
+  const W=380,H=200,cx=105,cy=95,R=75,r2=45;
+  const svg=makeSVG(W,H);
+  let startAngle=-Math.PI/2;
+  Object.entries(cats).filter(([,v])=>v>0).forEach(([name,val]) => {{
+    const slice=(val/total)*Math.PI*2, endAngle=startAngle+slice;
+    const x1=cx+R*Math.cos(startAngle),y1=cy+R*Math.sin(startAngle);
+    const x2=cx+R*Math.cos(endAngle),y2=cy+R*Math.sin(endAngle);
+    const xi1=cx+r2*Math.cos(startAngle),yi1=cy+r2*Math.sin(startAngle);
+    const xi2=cx+r2*Math.cos(endAngle),yi2=cy+r2*Math.sin(endAngle);
+    const large=slice>Math.PI?1:0;
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',`M ${{xi1}} ${{yi1}} L ${{x1}} ${{y1}} A ${{R}} ${{R}} 0 ${{large}} 1 ${{x2}} ${{y2}} L ${{xi2}} ${{yi2}} A ${{r2}} ${{r2}} 0 ${{large}} 0 ${{xi1}} ${{yi1}} Z`);
+    path.setAttribute('fill',catColors[name]||MR.pink);
+    svg.appendChild(path);
+    startAngle=endAngle;
+  }});
+  svgText(svg,cx,cy-4,total.toLocaleString(),{{size:16,color:MR.maroon,anchor:'middle',weight:'800'}});
+  svgText(svg,cx,cy+14,'total',{{size:11,color:MR.muted,anchor:'middle'}});
+  let ly=28;
+  Object.entries(cats).filter(([,v])=>v>0).forEach(([name,val]) => {{
+    svgRect(svg,215,ly-9,12,12,catColors[name]||MR.pink,2);
+    svgText(svg,233,ly,name,{{size:11,color:MR.maroon,weight:'600'}});
+    const pct=Math.round(val/total*100);
+    svgText(svg,360,ly,`${{val}} (${{pct}}%)`,{{size:11,color:MR.muted,anchor:'end'}});
+    ly+=22;
+  }});
+  el.appendChild(svg);
+}}
+
+function renderDaysChart() {{
+  const el=document.getElementById('chart-days'); el.innerHTML='';
+  const buckets=[['1–3',1,3],['4–6',4,6],['7–10',7,10],['11–15',11,15],['16+',16,999]];
+  const counts=buckets.map(([label,lo,hi]) => [label,filteredRecords.filter(r=>r.days_to_box2!=null&&r.days_to_box2>=lo&&r.days_to_box2<=hi).length]);
+  const maxVal=Math.max(...counts.map(([,c])=>c),1);
+  const W=380,barW=52,gap=12,padX=18,padY=20,chartH=120,H=chartH+padY*2+20;
+  const svg=makeSVG(W,H);
+  counts.forEach(([label,cnt],i) => {{
+    const x=padX+i*(barW+gap);
+    const bh=(cnt/maxVal)*chartH, y=padY+chartH-bh;
+    svgRect(svg,x,y,barW,bh,i%2===0?MR.maroon:MR.mustard);
+    svgText(svg,x+barW/2,padY+chartH+14,label,{{size:10,color:MR.muted,anchor:'middle'}});
+    if(cnt>0) svgText(svg,x+barW/2,y-4,cnt,{{size:11,color:MR.maroon,anchor:'middle',weight:'700'}});
+  }});
+  el.appendChild(svg);
+}}
+
+function renderEaterChart() {{
+  const el=document.getElementById('chart-eater'); el.innerHTML='';
+  const counts={{}};
+  filteredRecords.forEach(r=>{{ if(r.eater_type) counts[r.eater_type]=(counts[r.eater_type]||0)+1; }});
+  const entries=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  if (!entries.length) {{ el.innerHTML='<p style="color:var(--mr-text-muted);font-size:12px">No data</p>'; return; }}
+  const W=380,barH=26,gap=10,labelW=90,pad=10;
+  const H=entries.length*(barH+gap)+pad*2;
+  const svg=makeSVG(W,H);
+  const maxVal=entries[0][1], barMax=W-labelW-55;
+  entries.forEach(([name,cnt],i) => {{
+    const y=pad+i*(barH+gap);
+    const bw=(cnt/maxVal)*barMax;
+    svgText(svg,0,y+barH-7,name,{{size:11,color:MR.maroon,anchor:'start',weight:'600'}});
+    svgRect(svg,labelW,y,bw,barH,CHART_PALETTE[i%CHART_PALETTE.length]);
+    svgText(svg,labelW+bw+6,y+barH-7,cnt,{{size:11,color:MR.maroon,weight:'700'}});
+  }});
+  el.appendChild(svg);
+}}
+
+function esc(s) {{ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+{fetch_block}
+</script>
+</body>
+</html>"""
